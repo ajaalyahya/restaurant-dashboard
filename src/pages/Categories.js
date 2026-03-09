@@ -52,8 +52,8 @@ const SortableCard = ({ cat, onEdit, onDelete, onClick }) => {
       <div className="cat-body">
         <h3 className="cat-name">{cat.name}</h3>
         <div className="cat-actions">
-          <button className="btn-icon edit" onClick={(e) => { e.stopPropagation(); onEdit(e, cat); }}>✎</button>
-          <button className="btn-icon del" onClick={(e) => { e.stopPropagation(); onDelete(e, cat.id); }}>✕</button>
+          <button className="btn-icon edit" onClick={(e) => { e.stopPropagation(); onEdit(e, cat); }}>✏️</button>
+          <button className="btn-icon del" onClick={(e) => { e.stopPropagation(); onDelete(e, cat.id); }}>❌</button>
         </div>
       </div>
     </div>
@@ -203,7 +203,7 @@ const Categories = () => {
         <form onSubmit={handleSave}>
           <div className="form-group">
             <label className="form-label">اسم الصنف</label>
-            <input className="form-input" placeholder="مثال: برغر، بيتزا..."
+            <input className="form-input" placeholder="مثال: ماتشا..."
               value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           </div>
           <div className="form-group">

@@ -13,6 +13,7 @@ import {
   SortableContext, useSortable, arrayMove, rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import ryal from "../../src/assets/ryal.png";
 
 const CLOUD_NAME = "dlcnuokdr";
 const UPLOAD_PRESET = "menu_uploads";
@@ -54,7 +55,7 @@ const SortableCard = ({ prod, onEdit, onDelete }) => {
         <h3 className="prod-name">{prod.name}</h3>
         <p className="prod-desc">{prod.desc}</p>
         <div className="prod-meta">
-          <span className="prod-price">{prod.price} ر.س</span>
+          <span className="prod-price">{prod.price} <img src={ryal} alt="SAR" style={{ width: 14, height: 14, objectFit: "contain" }} /></span>
           <span className="prod-cal">{prod.cal} سعرة</span>
         </div>
         <div className="prod-actions">
