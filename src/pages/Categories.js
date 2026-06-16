@@ -1,10 +1,9 @@
-// src/pages/Categories.js
 import { useEffect, useState } from "react";
 import {
-  collection, getDocs, addDoc, deleteDoc, doc, updateDoc, writeBatch,
+  collection, getDocs, addDoc, deleteDoc, doc, updateDoc, writeBatch, query, where,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Modal from "../components/Modal";
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -22,38 +21,25 @@ const uploadImage = async (file) => {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", UPLOAD_PRESET);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-    method: "POST", body: formData,
-  });
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: "POST", body: formData });
   const data = await res.json();
   return data.secure_url;
 };
 
-// ── بطاقة صنف قابلة للسحب ──
 const SortableCard = ({ cat, onEdit, onDelete, onClick }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   return (
     <div ref={setNodeRef} style={style} className="cat-card" onClick={onClick}>
-      <div className="drag-handle" {...attributes} {...listeners}
-        onClick={(e) => e.stopPropagation()} title="اسحب لتغيير الترتيب">
-        ⠿
-      </div>
+      <div className="drag-handle" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()}>⠿</div>
       <div className="cat-img-wrap">
-        {cat.imageUrl
-          ? <img src={cat.imageUrl} alt={cat.name} className="cat-img" />
-          : <div className="cat-img-fallback">◈</div>}
+        {cat.imageUrl ? <img src={cat.imageUrl} alt={cat.name} className="cat-img" /> : <div className="cat-img-fallback">◈</div>}
       </div>
       <div className="cat-body">
         <h3 className="cat-name">{cat.name}</h3>
         <div className="cat-actions">
           <button className="btn-icon edit" onClick={(e) => { e.stopPropagation(); onEdit(e, cat); }}>✏️</button>
-          <button className="btn-icon del" onClick={(e) => { e.stopPropagation(); onDelete(e, cat.id); }}>❌</button>
+          <button className="btn-icon del"  onClick={(e) => { e.stopPropagation(); onDelete(e, cat.id); }}>❌</button>
         </div>
       </div>
     </div>
@@ -61,80 +47,76 @@ const SortableCard = ({ cat, onEdit, onDelete, onClick }) => {
 };
 
 const Categories = () => {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [savingOrder, setSavingOrder] = useState(false);
+  const location = useLocation();
   const navigate = useNavigate();
 
-  const sensors = useSensors(useSensor(PointerSensor, {
-    activationConstraint: { distance: 5 },
-  }));
+  // تحديد الفرع من الـ URL
+  const isAramco = location.pathname.includes("aramco");
+  const branch   = isAramco ? "aramco" : "main";
+
+  const [categories, setCategories]     = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [modalOpen, setModalOpen]       = useState(false);
+  const [editTarget, setEditTarget]     = useState(null);
+  const [form, setForm]                 = useState(EMPTY_FORM);
+  const [imageFile, setImageFile]       = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [saving, setSaving]             = useState(false);
+  const [savingOrder, setSavingOrder]   = useState(false);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const fetchCategories = async () => {
     setLoading(true);
-    const snap = await getDocs(collection(db, "categories"));
-    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    data.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-    setCategories(data);
-    setLoading(false);
+    try {
+      const snap = await getDocs(collection(db, "categories"));
+      const all  = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // فلتر حسب الفرع
+      const filtered = all.filter((c) =>
+        c.branch === branch || c.branch === "both" || (!c.branch && branch === "main")
+      );
+      filtered.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+      setCategories(filtered);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchCategories(); }, []);
+  useEffect(() => { fetchCategories(); }, [branch]);
 
-  // ── سحب وإفلات ──
   const handleDragEnd = async (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-
     const oldIndex = categories.findIndex((c) => c.id === active.id);
     const newIndex = categories.findIndex((c) => c.id === over.id);
     const newOrder = arrayMove(categories, oldIndex, newIndex);
     setCategories(newOrder);
-
     setSavingOrder(true);
     try {
       const batch = writeBatch(db);
-      newOrder.forEach((cat, index) => {
-        batch.update(doc(db, "categories", cat.id), { order: index });
-      });
+      newOrder.forEach((cat, index) => batch.update(doc(db, "categories", cat.id), { order: index }));
       await batch.commit();
     } catch (e) { console.error(e); }
     finally { setSavingOrder(false); }
   };
 
   const openAdd = () => {
-    setEditTarget(null);
-    setForm(EMPTY_FORM);
-    setImageFile(null);
-    setImagePreview("");
-    setModalOpen(true);
+    setEditTarget(null); setForm(EMPTY_FORM);
+    setImageFile(null); setImagePreview(""); setModalOpen(true);
   };
 
   const openEdit = (e, cat) => {
-    e.stopPropagation();
-    setEditTarget(cat);
+    e.stopPropagation(); setEditTarget(cat);
     setForm({ name: cat.name, imageUrl: cat.imageUrl });
-    setImageFile(null);
-    setImagePreview(cat.imageUrl || "");
-    setModalOpen(true);
+    setImageFile(null); setImagePreview(cat.imageUrl || ""); setModalOpen(true);
   };
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    const file = e.target.files[0]; if (!file) return;
+    setImageFile(file); setImagePreview(URL.createObjectURL(file));
   };
 
   const handleSave = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+    e.preventDefault(); setSaving(true);
     try {
       let imageUrl = form.imageUrl;
       if (imageFile) imageUrl = await uploadImage(imageFile);
@@ -144,8 +126,8 @@ const Categories = () => {
         setCategories((prev) => prev.map((c) => c.id === editTarget.id ? { ...c, ...data } : c));
       } else {
         const newOrder = categories.length;
-        const ref = await addDoc(collection(db, "categories"), { ...data, order: newOrder });
-        setCategories((prev) => [...prev, { id: ref.id, ...data, order: newOrder }]);
+        const ref = await addDoc(collection(db, "categories"), { ...data, order: newOrder, branch });
+        setCategories((prev) => [...prev, { id: ref.id, ...data, order: newOrder, branch }]);
       }
       setModalOpen(false);
     } catch (err) { console.error(err); }
@@ -163,7 +145,9 @@ const Categories = () => {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">الأصناف</h1>
+          <h1 className="page-title">
+            الأصناف — {isAramco ? "فرع أرامكو 🏭" : "الفرع الرئيسي 🏠"}
+          </h1>
           <p className="page-desc">
             إدارة أصناف القائمة
             {savingOrder && <span style={{ color: "var(--accent)", marginRight: 8, fontSize: 12 }}>⟳ جاري حفظ الترتيب...</span>}
@@ -185,13 +169,11 @@ const Categories = () => {
           <SortableContext items={categories.map((c) => c.id)} strategy={rectSortingStrategy}>
             <div className="grid grid-4">
               {categories.map((cat) => (
-                <SortableCard
-                  key={cat.id}
-                  cat={cat}
-                  onEdit={openEdit}
-                  onDelete={handleDelete}
-                  onClick={() => navigate(`/dashboard/products/${cat.name}`)}
-                />
+                <SortableCard key={cat.id} cat={cat} onEdit={openEdit} onDelete={handleDelete}
+                  onClick={() => navigate(isAramco
+                    ? `/dashboard/products/aramco-cat/${cat.name}`
+                    : `/dashboard/products/${cat.name}`
+                  )} />
               ))}
             </div>
           </SortableContext>
@@ -203,7 +185,7 @@ const Categories = () => {
         <form onSubmit={handleSave}>
           <div className="form-group">
             <label className="form-label">اسم الصنف</label>
-            <input className="form-input" placeholder="مثال: ماتشا..."
+            <input className="form-input" placeholder="مثال: مشروبات..."
               value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           </div>
           <div className="form-group">
@@ -211,13 +193,9 @@ const Categories = () => {
             <div className="upload-area" onClick={() => document.getElementById("cat-file").click()}>
               {imagePreview
                 ? <img src={imagePreview} alt="preview" className="upload-preview" />
-                : <div className="upload-placeholder">
-                    <span className="upload-icon">⊕</span>
-                    <span>اضغط لرفع صورة</span>
-                  </div>}
+                : <div className="upload-placeholder"><span className="upload-icon">⊕</span><span>اضغط لرفع صورة</span></div>}
             </div>
-            <input id="cat-file" type="file" accept="image/*"
-              style={{ display: "none" }} onChange={handleImageChange} />
+            <input id="cat-file" type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageChange} />
           </div>
           <div className="modal-actions">
             <button type="button" className="btn-ghost" onClick={() => setModalOpen(false)}>إلغاء</button>

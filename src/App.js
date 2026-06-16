@@ -25,7 +25,10 @@ function App() {
           >
             <Route index element={<Home />} />
             <Route path="categories" element={<Categories />} />
+            <Route path="categories/aramco" element={<Categories />} />
             <Route path="products" element={<Products />} />
+            <Route path="products/aramco" element={<Products />} />
+            <Route path="products/aramco/:category" element={<Products />} />
             <Route path="products/:category" element={<Products />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
