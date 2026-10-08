@@ -17,7 +17,10 @@ import ryal from "../assets/ryal.png";
 
 const CLOUD_NAME  = "dlcnuokdr";
 const UPLOAD_PRESET = "menu_uploads";
-const EMPTY_FORM  = { name: "", desc: "", price: "", cal: "", img: "", category: "", branch: "main" };
+const EMPTY_FORM  = { 
+  name: "", desc: "", price: "", cal: "", img: "", category: "", branch: "main",
+  walkMinutes: "", runMinutes: "", caffeine: ""
+};
 
 const uploadImage = async (file) => {
   const formData = new FormData();
@@ -41,9 +44,12 @@ const SortableCard = ({ prod, onEdit, onDelete }) => {
       <div className="prod-body">
         <h3 className="prod-name">{prod.name}</h3>
         <p className="prod-desc">{prod.desc}</p>
-        <div className="prod-meta">
+        <div className="prod-meta" style={{ flexWrap: "wrap", gap: "6px" }}>
           <span className="prod-price">{prod.price} <img src={ryal} alt="SAR" style={{ width: 14, height: 14, objectFit: "contain", display: "inline" }} /></span>
           <span className="prod-cal">{prod.cal} سعرة</span>
+          {Boolean(prod.walkMinutes) && <span style={{ fontSize: "11px", color: "var(--text2)" }}>🚶‍♂️ {prod.walkMinutes} د مشي</span>}
+          {Boolean(prod.runMinutes) && <span style={{ fontSize: "11px", color: "var(--text2)" }}>🏃‍♂️ {prod.runMinutes} د جري</span>}
+          {Boolean(prod.caffeine) && <span style={{ fontSize: "11px", color: "var(--text2)" }}>☕ {prod.caffeine} ملجم</span>}
         </div>
         <div className="prod-actions">
           <button className="btn-sm edit" onClick={() => onEdit(prod)}>✏️ تعديل</button>
@@ -59,24 +65,20 @@ const Products = () => {
   const navigate     = useNavigate();
   const location     = useLocation();
 
-  // ── تحديد الفرع من الـ URL ──
   const isAramco = location.pathname.includes("aramco");
   const branch   = isAramco ? "aramco" : "main";
 
-  // ── تحديد الصنف النشط ──
-  const activeCategory = !category || category === "aramco"
-    ? null
-    : category;
+  const activeCategory = !category || category === "aramco" ? null : category;
 
-  const [products,   setProducts]   = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [modalOpen,  setModalOpen]  = useState(false);
-  const [editTarget, setEditTarget] = useState(null);
-  const [form,       setForm]       = useState({ ...EMPTY_FORM, branch });
-  const [imageFile,  setImageFile]  = useState(null);
+  const [products,    setProducts]    = useState([]);
+  const [categories,  setCategories]  = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [modalOpen,   setModalOpen]   = useState(false);
+  const [editTarget,  setEditTarget]  = useState(null);
+  const [form,        setForm]        = useState({ ...EMPTY_FORM, branch });
+  const [imageFile,   setImageFile]   = useState(null);
   const [imagePreview, setImagePreview] = useState("");
-  const [saving,      setSaving]    = useState(false);
+  const [saving,      setSaving]      = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -135,7 +137,18 @@ const Products = () => {
 
   const openEdit = (prod) => {
     setEditTarget(prod);
-    setForm({ name: prod.name, desc: prod.desc, price: prod.price, cal: prod.cal, img: prod.img, category: prod.category, branch: prod.branch || branch });
+    setForm({ 
+      name: prod.name || "", 
+      desc: prod.desc || "", 
+      price: prod.price || "", 
+      cal: prod.cal || "", 
+      img: prod.img || "", 
+      category: prod.category || "", 
+      branch: prod.branch || branch,
+      walkMinutes: prod.walkMinutes ?? "",
+      runMinutes: prod.runMinutes ?? "",
+      caffeine: prod.caffeine ?? ""
+    });
     setImageFile(null); setImagePreview(prod.img || ""); setModalOpen(true);
   };
 
@@ -150,8 +163,16 @@ const Products = () => {
       let img = form.img;
       if (imageFile) img = await uploadImage(imageFile);
       const data = {
-        name: form.name, desc: form.desc, price: form.price,
-        cal: Number(form.cal), img, category: form.category, branch: form.branch,
+        name: form.name, 
+        desc: form.desc, 
+        price: form.price,
+        cal: Number(form.cal) || 0, 
+        img, 
+        category: form.category, 
+        branch: form.branch,
+        walkMinutes: form.walkMinutes !== "" ? Number(form.walkMinutes) : null,
+        runMinutes: form.runMinutes !== "" ? Number(form.runMinutes) : null,
+        caffeine: form.caffeine !== "" ? Number(form.caffeine) : null,
       };
       if (editTarget) {
         await updateDoc(doc(db, "products", editTarget.id), data);
@@ -172,7 +193,6 @@ const Products = () => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
   };
 
-  // ── روابط التنقل ──
   const backPath   = isAramco ? "/dashboard/categories/aramco" : "/dashboard/categories";
   const allTabPath = isAramco ? "/dashboard/products/aramco"   : "/dashboard/products";
   const catTabPath = (name) => isAramco
@@ -200,7 +220,6 @@ const Products = () => {
         <button className="btn-primary" onClick={openAdd}>+ إضافة منتج</button>
       </div>
 
-      {/* بار الأصناف */}
       <div className="cat-tabs">
         <button className={`cat-tab ${!activeCategory ? "active" : ""}`} onClick={() => navigate(allTabPath)}>
           الكل
@@ -268,6 +287,7 @@ const Products = () => {
             <textarea className="form-input form-textarea" placeholder="وصف المنتج..."
               value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} rows={3} />
           </div>
+
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">السعر</label>
@@ -280,6 +300,27 @@ const Products = () => {
                 value={form.cal} onChange={(e) => setForm({ ...form, cal: e.target.value })} min="0" dir="ltr" />
             </div>
           </div>
+
+          {/* 🌟 الخانات الرياضية والصحية الجديدة 🌟 */}
+          <div className="form-row" style={{ marginTop: "10px" }}>
+            <div className="form-group">
+              <label className="form-label">🚶‍♂️ دقائق المشي (اختياري)</label>
+              <input type="number" className="form-input" placeholder="مثال: 20"
+                value={form.walkMinutes} onChange={(e) => setForm({ ...form, walkMinutes: e.target.value })} min="0" dir="ltr" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">🏃‍♂️ دقائق الجري (اختياري)</label>
+              <input type="number" className="form-input" placeholder="مثال: 10"
+                value={form.runMinutes} onChange={(e) => setForm({ ...form, runMinutes: e.target.value })} min="0" dir="ltr" />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">☕ الكافيين ملجم (اختياري)</label>
+            <input type="number" className="form-input" placeholder="مثال: 40"
+              value={form.caffeine} onChange={(e) => setForm({ ...form, caffeine: e.target.value })} min="0" dir="ltr" />
+          </div>
+
           <div className="form-group">
             <label className="form-label">صورة المنتج</label>
             <div className="upload-area" onClick={() => document.getElementById("prod-file").click()}>
@@ -289,6 +330,7 @@ const Products = () => {
             </div>
             <input id="prod-file" type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageChange} />
           </div>
+
           <div className="modal-actions">
             <button type="button" className="btn-ghost" onClick={() => setModalOpen(false)}>إلغاء</button>
             <button type="submit" className="btn-primary" disabled={saving}>
