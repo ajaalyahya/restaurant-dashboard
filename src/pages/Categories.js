@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  collection, getDocs, addDoc, deleteDoc, doc, updateDoc, writeBatch, query, where,
+  collection, getDocs, addDoc, deleteDoc, doc, updateDoc, writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -71,12 +71,10 @@ const Categories = () => {
     try {
       const snap = await getDocs(collection(db, "categories"));
       const all  = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      // فلتر حسب الفرع
-      const filtered = all.filter((c) =>
-        c.branch === branch || c.branch === "both" || (!c.branch && branch === "main")
-      );
-      filtered.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-      setCategories(filtered);
+      
+      // جلب كافة الأقسام بدون قيود فرعية معقدة لضمان ظهورها دائماً
+      all.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+      setCategories(all);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -171,7 +169,7 @@ const Categories = () => {
               {categories.map((cat) => (
                 <SortableCard key={cat.id} cat={cat} onEdit={openEdit} onDelete={handleDelete}
                   onClick={() => navigate(isAramco
-                    ? `/dashboard/products/aramco-cat/${cat.name}`
+                    ? `/dashboard/products/aramco/${cat.name}`
                     : `/dashboard/products/${cat.name}`
                   )} />
               ))}
@@ -199,7 +197,7 @@ const Categories = () => {
           </div>
           <div className="modal-actions">
             <button type="button" className="btn-ghost" onClick={() => setModalOpen(false)}>إلغاء</button>
-            <button type="submit" className="btn-primary" disabled={saving}>
+            <button type="submit" className="btn-primary" nested={saving} disabled={saving}>
               {saving ? <span className="btn-loader" /> : "حفظ"}
             </button>
           </div>
