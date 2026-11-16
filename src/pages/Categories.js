@@ -72,14 +72,19 @@ const Categories = () => {
       const snap = await getDocs(collection(db, "categories"));
       const all  = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       
-      // جلب كافة الأقسام بدون قيود فرعية معقدة لضمان ظهورها دائماً
-      all.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-      setCategories(all);
+      // فلترة الأصناف بحيث تظهر فقط الخاصة بالفرع الحالي أو المشتركة (both) أو القديمة التي بلا فرع
+      const filtered = all.filter((c) => {
+        const branchMatch = c.branch === branch || c.branch === "both" || (!c.branch && branch === "main");
+        return branchMatch;
+      });
+
+      filtered.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+      setCategories(filtered);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchCategories(); }, [branch]);
+  useEffect(() => { fetchCategories(); }, [branch, location.pathname]);
 
   const handleDragEnd = async (event) => {
     const { active, over } = event;
@@ -197,7 +202,7 @@ const Categories = () => {
           </div>
           <div className="modal-actions">
             <button type="button" className="btn-ghost" onClick={() => setModalOpen(false)}>إلغاء</button>
-            <button type="submit" className="btn-primary" nested={saving} disabled={saving}>
+            <button type="submit" className="btn-primary" disabled={saving}>
               {saving ? <span className="btn-loader" /> : "حفظ"}
             </button>
           </div>

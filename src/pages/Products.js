@@ -15,18 +15,29 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import ryal from "../assets/ryal.png";
 
-const CLOUD_NAME  = "dlcnuokdr";
+const CLOUD_NAME = "dlcnuokdr";
 const UPLOAD_PRESET = "menu_uploads";
-const EMPTY_FORM  = { 
+
+const ALLERGEN_OPTIONS = [
+  { id: "dairy", label: "حليب", icon: "🥛" },
+  { id: "nuts", label: "مكسرات", icon: "🥜" },
+  { id: "peanuts", label: "فول سوداني", icon: "🥜" },
+  { id: "soy", label: "فول الصويا ومنتجاته", icon: "🫘" },
+  { id: "grains", label: "حبوب", icon: "🌾" },
+  { id: "sesame", label: "بذور السمسم", icon: "⚪" },
+  { id: "eggs", label: "بيض", icon: "🥚" },
+];
+
+const EMPTY_FORM = { 
   name: "", desc: "", price: "", cal: "", img: "", category: "", branch: "main",
-  walkMinutes: "", runMinutes: "", caffeine: ""
+  walkMinutes: "", runMinutes: "", caffeine: "", allergens: []
 };
 
 const uploadImage = async (file) => {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", UPLOAD_PRESET);
-  const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: "POST", body: formData });
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: "POST", body: formData });
   const data = await res.json();
   return data.secure_url;
 };
@@ -34,6 +45,7 @@ const uploadImage = async (file) => {
 const SortableCard = ({ prod, onEdit, onDelete }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: prod.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  
   return (
     <div ref={setNodeRef} style={style} className="prod-card">
       <div className="drag-handle" {...attributes} {...listeners} title="اسحب">⠿</div>
@@ -51,9 +63,24 @@ const SortableCard = ({ prod, onEdit, onDelete }) => {
           {Boolean(prod.runMinutes) && <span style={{ fontSize: "11px", color: "var(--text2)" }}>🏃‍♂️ {prod.runMinutes} د جري</span>}
           {Boolean(prod.caffeine) && <span style={{ fontSize: "11px", color: "var(--text2)" }}>☕ {prod.caffeine} ملجم</span>}
         </div>
+
+        {prod.allergens && prod.allergens.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "8px", paddingTop: "8px", borderTop: "1px dashed #eee" }}>
+            {prod.allergens.map((algId) => {
+              const algObj = ALLERGEN_OPTIONS.find(a => a.id === algId);
+              if (!algObj) return null;
+              return (
+                <span key={algId} style={{ fontSize: "10px", background: "#fff3cd", color: "#856404", padding: "2px 6px", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                  {algObj.icon} {algObj.label}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
         <div className="prod-actions">
           <button className="btn-sm edit" onClick={() => onEdit(prod)}>✏️ تعديل</button>
-          <button className="btn-sm del"  onClick={() => onDelete(prod.id)}>❌ حذف</button>
+          <button className="btn-sm del" onClick={() => onDelete(prod.id)}>❌ حذف</button>
         </div>
       </div>
     </div>
@@ -62,23 +89,23 @@ const SortableCard = ({ prod, onEdit, onDelete }) => {
 
 const Products = () => {
   const { category } = useParams();
-  const navigate     = useNavigate();
-  const location     = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const isAramco = location.pathname.includes("aramco");
-  const branch   = isAramco ? "aramco" : "main";
+  const branch = isAramco ? "aramco" : "main";
 
   const activeCategory = !category || category === "aramco" ? null : category;
 
-  const [products,    setProducts]    = useState([]);
-  const [categories,  setCategories]  = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [modalOpen,   setModalOpen]   = useState(false);
-  const [editTarget,  setEditTarget]  = useState(null);
-  const [form,        setForm]        = useState({ ...EMPTY_FORM, branch });
-  const [imageFile,   setImageFile]   = useState(null);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [form, setForm] = useState({ ...EMPTY_FORM, branch });
+  const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
-  const [saving,      setSaving]      = useState(false);
+  const [saving, setSaving] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -87,11 +114,11 @@ const Products = () => {
     setLoading(true);
     try {
       const snap = await getDocs(collection(db, "products"));
-      const all  = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
       const filtered = all.filter((p) => {
         const branchMatch = p.branch === branch || p.branch === "both" || (!p.branch && branch === "main");
-        const catMatch    = activeCategory ? p.category === activeCategory : true;
+        const catMatch = activeCategory ? p.category === activeCategory : true;
         return branchMatch && catMatch;
       });
 
@@ -103,7 +130,7 @@ const Products = () => {
 
   const fetchCategories = async () => {
     const snap = await getDocs(collection(db, "categories"));
-    const all  = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const filtered = all.filter((c) =>
       c.branch === branch || c.branch === "both" || (!c.branch && branch === "main")
     );
@@ -131,7 +158,7 @@ const Products = () => {
 
   const openAdd = () => {
     setEditTarget(null);
-    setForm({ ...EMPTY_FORM, category: activeCategory || "", branch });
+    setForm({ ...EMPTY_FORM, category: activeCategory || "", branch, allergens: [] });
     setImageFile(null); setImagePreview(""); setModalOpen(true);
   };
 
@@ -147,7 +174,8 @@ const Products = () => {
       branch: prod.branch || branch,
       walkMinutes: prod.walkMinutes ?? "",
       runMinutes: prod.runMinutes ?? "",
-      caffeine: prod.caffeine ?? ""
+      caffeine: prod.caffeine ?? "",
+      allergens: prod.allergens || []
     });
     setImageFile(null); setImagePreview(prod.img || ""); setModalOpen(true);
   };
@@ -155,6 +183,17 @@ const Products = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0]; if (!file) return;
     setImageFile(file); setImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleAllergenToggle = (algId) => {
+    setForm((prev) => {
+      const current = prev.allergens || [];
+      if (current.includes(algId)) {
+        return { ...prev, allergens: current.filter(id => id !== algId) };
+      } else {
+        return { ...prev, allergens: [...current, algId] };
+      }
+    });
   };
 
   const handleSave = async (e) => {
@@ -173,6 +212,7 @@ const Products = () => {
         walkMinutes: form.walkMinutes !== "" ? Number(form.walkMinutes) : null,
         runMinutes: form.runMinutes !== "" ? Number(form.runMinutes) : null,
         caffeine: form.caffeine !== "" ? Number(form.caffeine) : null,
+        allergens: form.allergens || [],
       };
       if (editTarget) {
         await updateDoc(doc(db, "products", editTarget.id), data);
@@ -193,8 +233,8 @@ const Products = () => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const backPath   = isAramco ? "/dashboard/categories/aramco" : "/dashboard/categories";
-  const allTabPath = isAramco ? "/dashboard/products/aramco"   : "/dashboard/products";
+  const backPath = isAramco ? "/dashboard/categories/aramco" : "/dashboard/categories";
+  const allTabPath = isAramco ? "/dashboard/products/aramco" : "/dashboard/products";
   const catTabPath = (name) => isAramco
     ? `/dashboard/products/aramco/${name}`
     : `/dashboard/products/${name}`;
@@ -301,7 +341,6 @@ const Products = () => {
             </div>
           </div>
 
-          {/* 🌟 الخانات الرياضية والصحية الجديدة 🌟 */}
           <div className="form-row" style={{ marginTop: "10px" }}>
             <div className="form-group">
               <label className="form-label">🚶‍♂️ دقائق المشي (اختياري)</label>
@@ -319,6 +358,38 @@ const Products = () => {
             <label className="form-label">☕ الكافيين ملجم (اختياري)</label>
             <input type="number" className="form-input" placeholder="مثال: 40"
               value={form.caffeine} onChange={(e) => setForm({ ...form, caffeine: e.target.value })} min="0" dir="ltr" />
+          </div>
+
+          {/* خيارات مسببات الحساسية */}
+          <div className="form-group">
+            <label className="form-label">⚠️ مسببات الحساسية (اختياري)</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "6px" }}>
+              {ALLERGEN_OPTIONS.map((alg) => {
+                const isSelected = (form.allergens || []).includes(alg.id);
+                return (
+                  <button
+                    type="button"
+                    key={alg.id}
+                    onClick={() => handleAllergenToggle(alg.id)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      border: isSelected ? "1px solid #b45309" : "1px solid #ddd",
+                      background: isSelected ? "#fffbeb" : "#f9f9f9",
+                      color: isSelected ? "#92400e" : "#555",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px"
+                    }}
+                  >
+                    <span>{alg.icon}</span>
+                    <span>{alg.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="form-group">
